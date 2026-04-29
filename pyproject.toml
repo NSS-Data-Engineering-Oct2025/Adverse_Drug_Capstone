@@ -1,0 +1,27 @@
+[project]
+name = "adverse-drugs"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "apache-airflow>=3.2.1",
+    "dbt>=1.0.0.40.16",
+    "dbt-snowflake>=1.11.4",
+    "httpx>=0.28.1",
+    "loguru>=0.7.3",
+    "pendulum>=3.2.0",
+    "polars>=1.40.1",
+    "python-dotenv>=1.2.2",
+]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.15.12",
+]
+
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W", "N", "UP", "B", "S", "SIM", "RUF", "T20"]
