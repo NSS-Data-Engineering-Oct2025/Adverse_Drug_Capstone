@@ -1,0 +1,6 @@
+sources:
+  - name: ADVERSE_DRUGS
+    schema: BRONZE
+    tables:
+      - name: OPENFDA_DRUGS
+        description: "Raw approved data ingested from OpenFDA API"
