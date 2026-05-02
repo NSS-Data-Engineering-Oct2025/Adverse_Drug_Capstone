@@ -5,13 +5,13 @@ from pathlib import Path
 from loguru import logger
 
 
-def polars_to_s3_parquet(client, data, bucket, file_name, folder = None):
+def polars_to_s3_parquet(client, data, file_name, config):
     try:
-        s3_key = f"{folder}/{file_name}"
+        s3_key = f"{config['PROJECT_FOLDER']}/{file_name}"
         parquet_buffer = BytesIO()
         data.write_parquet(parquet_buffer)
-        client.put_object(Bucket=bucket, Key=s3_key, Body=parquet_buffer.getvalue())
-        logger.info(f"File {file_name} uploaded to S3 bucket {bucket} successfully at {folder}.")
+        client.put_object(Bucket=config['AWS_BUCKET_NAME'], Key=s3_key, Body=parquet_buffer.getvalue())
+        logger.info(f"{file_name} uploaded to S3 bucket {config['AWS_BUCKET_NAME']} at {config['PROJECT_FOLDER']}.")
 
     except Exception as e:
         logger.error(f"Error uploading file to S3: {e}", exc_info=True)
