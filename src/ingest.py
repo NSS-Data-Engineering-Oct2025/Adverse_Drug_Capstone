@@ -1,9 +1,9 @@
+import asyncio
 import io
 import zipfile
 
 import httpx
 import polars as pl
-import asyncio
 from loguru import logger
 
 
@@ -36,20 +36,56 @@ def drugsfda_from_api(api_key):
         logger.error(f"Error ingesting data from DrugsFDA API: {e}", exc_info=True)
         raise e
 
+async def learn_schema_for_table(target_file_suffix: str):
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        for year in range(2026, 2011, -1):  # newest → oldest
+            for quarter in range(4, 0, -1):
+                url = f"https://fis.fda.gov/content/Exports/faers_ascii_{year}q{quarter}.zip"
+                res = await client.get(url)
+                if res.status_code != 200:
+                    continue
+
+                with zipfile.ZipFile(io.BytesIO(res.content)) as z:
+                    matches = [
+                        f for f in z.namelist()
+                        if target_file_suffix.upper() in f.upper()
+                        and f.lower().endswith(".txt")
+                    ]
+                    if not matches:
+                        continue
+
+                    with z.open(matches[0]) as f:
+                        df = pl.read_csv(
+                            f,
+                            separator="$",
+                            encoding="latin-1",
+                            quote_char=None,
+                            infer_schema_length=10000,
+                            truncate_ragged_lines=True
+                        )
+                        return df.columns
+
+    raise RuntimeError(f"Could not learn schema for {target_file_suffix}")
+
+
+async def build_schema_override(target_file_suffix: str):
+    cols = await learn_schema_for_table(target_file_suffix)
+    return {col: pl.String for col in cols}
+
 async def fetch_and_parse_quarter(
     client: httpx.AsyncClient,
     year: int,
     quarter: int,
     target_file_suffix: str,
-    common_overrides: dict
+    schema_override: dict
 ):
     url = f"https://fis.fda.gov/content/Exports/faers_ascii_{year}q{quarter}.zip"
-    print(f"Fetching {year} Q{quarter}...")
+    logger.info(f"Fetching {year} Q{quarter}...")
 
     try:
         response = await client.get(url)
         if response.status_code == 404:
-            print(f"Skipping {year} Q{quarter}: File not found.")
+            logger.warning(f"Skipping {year} Q{quarter}: File not found.")
             return None
 
         response.raise_for_status()
@@ -63,7 +99,7 @@ async def fetch_and_parse_quarter(
                 and not f.startswith("__MACOSX")
             ]
             if not matches:
-                print(f"{target_file_suffix} not found in {year} Q{quarter}. Skipping.")
+                logger.warning(f"{target_file_suffix} not found in {year} Q{quarter}. Skipping.")
                 return None
 
             target_file = matches[0]
@@ -77,7 +113,7 @@ async def fetch_and_parse_quarter(
                     quote_char=None,
                     infer_schema_length=10000,
                     truncate_ragged_lines=True,
-                    schema_overrides=common_overrides
+                    schema_overrides=schema_override
                 )
 
                 df = df.with_columns([
@@ -85,24 +121,26 @@ async def fetch_and_parse_quarter(
                     pl.lit(quarter).alias("src_quarter")
                 ])
 
-                print(f"Loaded {len(df)} rows from {year} Q{quarter}")
+                logger.info(f"Loaded {len(df)} rows from {year} Q{quarter}")
                 return df
 
     except Exception as e:
-        print(f"Error processing {year} Q{quarter}: {e}")
+        logger.error(f"Error processing {year} Q{quarter}: {e}", exc_info=True)
         return None
 
 
 async def get_full_faers_async(target_file_suffix: str = "DEMO"):
-    frames = []
+    concat_frames = []
 
-    common_overrides = {
-        "age": pl.String,
-        "age_cod": pl.String,
-        "gndr_cod": pl.String,
-        "weight": pl.String,
-        "nda_num": pl.String
-    }
+    logger.info(f"Learning file structure for {target_file_suffix}...")
+    schema_override = await build_schema_override(target_file_suffix)
+    # common_overrides = {
+    #     "age": pl.String,
+    #     "age_cod": pl.String,
+    #     "gndr_cod": pl.String,
+    #     "weight": pl.String,
+    #     "nda_num": pl.String
+    # }
 
     async with httpx.AsyncClient(timeout=120.0) as client:
         tasks = []
@@ -115,7 +153,7 @@ async def get_full_faers_async(target_file_suffix: str = "DEMO"):
                         year,
                         quarter,
                         target_file_suffix,
-                        common_overrides
+                        schema_override
                     )
                 )
 
