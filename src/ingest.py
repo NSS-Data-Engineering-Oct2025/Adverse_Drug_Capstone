@@ -105,11 +105,22 @@ async def fetch_and_parse_quarter(
             target_file = matches[0]
 
             with z.open(target_file) as f:
+            #     df = pl.read_csv(
+            #         f,
+            #         separator="$",
+            #         ignore_errors=True,
+            #         encoding="latin-1",
+            #         quote_char=None,
+            #         infer_schema_length=10000,
+            #         truncate_ragged_lines=True,
+            #         schema_overrides=schema_override
+            #     )
+                raw = f.read()                      # raw bytes
+                text = raw.decode("latin-1", errors="replace")
                 df = pl.read_csv(
-                    f,
+                    io.StringIO(text),
                     separator="$",
                     ignore_errors=True,
-                    encoding="latin-1",
                     quote_char=None,
                     infer_schema_length=10000,
                     truncate_ragged_lines=True,
