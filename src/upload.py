@@ -54,7 +54,10 @@ def s3_parquet_to_snowflake(aws_session, snowflake_conn, config):
 
         #Files to move to Snowflake
         files = {
-            "openfda_drugs": Path(config['OPENFDA_RAW_FILE_NAME'])
+            "openfda_drugs": Path(config['OPENFDA_RAW_FILE_NAME']),
+            "demo_faers": Path(config["DEMO_FAERS_RAW_FILE_NAME"]),
+            "drug_faers": Path(config["DRUG_FAERS_RAW_FILE_NAME"]),
+            "reac_faers": Path(config["REAC_FAERS_RAW_FILE_NAME"])
         }
 
         # Main Ingestion
@@ -72,7 +75,7 @@ def s3_parquet_to_snowflake(aws_session, snowflake_conn, config):
                         USING TEMPLATE (
                             SELECT ARRAY_AGG(OBJECT_CONSTRUCT(*))
                             FROM TABLE(INFER_SCHEMA(
-                                LOCATION=>'@nppes_s3_stage/{file_name}',
+                                LOCATION=>'@drugs_s3_stage/{file_name}',
                                 FILE_FORMAT=>'csv_ingest_format'
                             ))
                         );
@@ -80,7 +83,7 @@ def s3_parquet_to_snowflake(aws_session, snowflake_conn, config):
 
                     # Load data
                     curr.execute(f"""COPY INTO {table_name}
-                                FROM @nppes_s3_stage/{file_name}
+                                FROM @drugs_s3_stage/{file_name}
                                 FILE_FORMAT=(FORMAT_NAME='csv_ingest_format')
                                 MATCH_BY_COLUMN_NAME = CASE_INSENSITIVE
                                 ON_ERROR='CONTINUE';
