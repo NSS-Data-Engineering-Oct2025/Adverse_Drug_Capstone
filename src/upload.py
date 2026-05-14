@@ -55,6 +55,7 @@ def s3_parquet_to_snowflake(aws_session, snowflake_conn, config):
         #Files to move to Snowflake
         files = {
             "openfda_drugs": Path(config['OPENFDA_RAW_FILE_NAME']),
+            "census_fips": Path(config["CENSUS_FIPS_RAW_FILE_NAME"]),
             "demo_faers": Path(config["DEMO_FAERS_RAW_FILE_NAME"]),
             "drug_faers": Path(config["DRUG_FAERS_RAW_FILE_NAME"]),
             "reac_faers": Path(config["REAC_FAERS_RAW_FILE_NAME"])

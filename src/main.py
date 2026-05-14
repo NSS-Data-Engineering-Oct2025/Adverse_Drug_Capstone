@@ -40,16 +40,22 @@ faers_target_tables = ["DEMO", "DRUG", "REAC"]
 def main():
     logger.info("Starting pipeline...")
 
+    #fda drugs data from API and upload to S3
     fda_drugs_df = ingest.drugsfda_from_api(config["OPENFDA_API_KEY"])
     logger.info("Ingested data from DrugsFDA dataset.")
-
     upload.polars_to_s3_parquet(client=aws_s3_client, data=fda_drugs_df, file_name=config["OPENFDA_RAW_FILE_NAME"], config=config)
     logger.info(f"Uploaded {config['OPENFDA_RAW_FILE_NAME']} to S3.")
 
+    #census fips data from API and upload to S3
+    census_fips_df = ingest.fetch_census_fips(config["CENSUS_API_URL"], config["CENSUS_API_KEY"])
+    logger.info("Ingested data from Census FIPS dataset.")
+    upload.polars_to_s3_parquet(client=aws_s3_client, data=census_fips_df, file_name=config["CENSUS_FIPS_RAW_FILE_NAME"], config=config)
+    logger.info(f"Uploaded {config['CENSUS_FIPS_RAW_FILE_NAME']} to S3.")
+
+    #FAERS data from API and upload to S3
     for table in faers_target_tables:
         faers_target_df = asyncio.run(ingest.get_full_faers_async(table))
         logger.info(f"Ingested FAERS {table} data from API.")
-
         upload.polars_to_s3_parquet(client=aws_s3_client, data=faers_target_df, file_name=f"{table.lower()}_faers_raw.parquet", config=config)
         logger.info(f"Uploaded {table}_FAERS_RAW.parquet to S3.")
 
