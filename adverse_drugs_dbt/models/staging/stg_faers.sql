@@ -59,8 +59,17 @@ drug_faers_init as (
         ELSE "lot_nbr"::string
     END as lot_number,
     "exp_dt"::date as expiration_date,
-    "nda_num"::BIGINT as nda_number,
-    "dose_amt"::FLOAT as dose_amount,
+    TRY_TO_NUMBER("nda_num"::string)::BIGINT as nda_number,
+    "dose_amt"::string as dose_amt_raw,
+    CASE
+        WHEN "dose_amt" LIKE '%/%'
+            THEN TRY_TO_NUMBER(SPLIT_PART("dose_amt"::string, '/', 1), 10, 2) / NULLIF(TRY_TO_NUMBER(SPLIT_PART("dose_amt"::string, '/', 2), 10, 2), 0) -- Extract the part after the '/' if it exists
+        WHEN REGEXP_LIKE("dose_amt"::string, '^[0-9.]+\\s*[A-Za-z]+$')
+            THEN TRY_TO_NUMBER(REGEXP_SUBSTR("dose_amt"::string, '^[0-9.]+'), 10, 2) -- Extract the numeric part if it's followed by letters (e.g., '5 mg')
+        WHEN "dose_amt" LIKE '%-%' AND REGEXP_LIKE("dose_amt"::string, '^[0-9.]+\\-[0-9.]+$')
+            THEN (TRY_TO_NUMBER(SPLIT_PART("dose_amt"::string, '-', 1), 10, 2) + TRY_TO_NUMBER(SPLIT_PART("dose_amt"::string, '-', 2), 10, 2)) / 2 -- Take the average of the two numbers if it's a range
+        ELSE TRY_TO_NUMBER("dose_amt"::string, 10, 2) -- Use the original value if there is no '/'
+    END as dose_amount,
     "dose_unit"::string as dose_unit,
     "dose_form"::string as dose_form,
     "dose_freq"::string as dose_frequency,
@@ -99,6 +108,7 @@ SELECT
     drug.lot_number,
     drug.expiration_date,
     drug.nda_number,
+    drug.dose_amt_raw,
     drug.dose_amount,
     drug.dose_unit,
     drug.dose_form,

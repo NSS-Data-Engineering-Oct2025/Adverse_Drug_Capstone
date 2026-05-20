@@ -8,8 +8,16 @@ flattened_results as (
         "meta":last_updated::timestamp as last_updated,
 
         -- Extract from the flattened 'results' variant
-        LEFT(r.value:application_number::string, LEN(r.value:application_number::string) - 6) as application_type,
-        RIGHT(r.value:application_number::string, 6)::BIGINT as application_number,
+        CASE
+            WHEN TRY_TO_NUMBER(RIGHT(r.value:application_number::string, 6)) IS NULL
+                THEN LEFT(r.value:application_number::string, LEN(r.value:application_number::string) - 5) -- Handle cases where the last 6 characters are not numeric, extract the part of the string before the last 5 characters as application type
+            ELSE LEFT(r.value:application_number::string, LEN(r.value:application_number::string) - 6) -- Extract the part of the string before the last 6 characters as application type
+        END as application_type,
+        CASE
+            WHEN TRY_TO_NUMBER(RIGHT(r.value:application_number::string, 6)) IS NULL
+                THEN TRY_TO_NUMBER(r.value:application_number::string, 5) -- Handle cases where the last 6 characters are not numeric, try 5 characters instead
+            ELSE TRY_TO_NUMBER(RIGHT(r.value:application_number::string, 6)) -- Extract the last 6 characters and convert to number
+        END as application_number,
         ai.value:name::string as active_ingredient_name,
         ai.value:strength::string as active_ingredient_strength,
         p.value:brand_name::string as brand_name,

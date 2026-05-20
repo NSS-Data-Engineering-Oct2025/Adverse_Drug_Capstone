@@ -1,0 +1,6 @@
+models:
+  - name: dim_fips_census
+    description: "Dimensional table for FIPS census data"
+    
+  - name: dim_drug_faers
+    description: "Dimensional table for drug FAERS data"
