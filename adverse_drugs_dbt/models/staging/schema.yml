@@ -4,3 +4,11 @@ sources:
     tables:
       - name: OPENFDA_DRUGS
         description: "Raw approved data ingested from OpenFDA API"
+      - name: CENSUS_FIPS
+        description: "Raw census data by FIPS code ingested from US Census Bureau API"
+      - name: DEMO_FAERS
+        description: "Raw demographic data ingested from FAERS files"
+      - name: DRUG_FAERS
+        description: "Raw drug data ingested from FAERS files"
+      - name: REAC_FAERS
+        description: "Raw reaction data ingested from FAERS files"
