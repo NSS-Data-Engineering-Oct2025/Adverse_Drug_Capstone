@@ -1,6 +1,5 @@
 import time
 from io import BytesIO
-from pathlib import Path
 
 from loguru import logger
 
@@ -18,7 +17,7 @@ def polars_to_s3_parquet(client, data, file_name, config):
         raise e
 
 
-def s3_parquet_to_snowflake(aws_session, snowflake_conn, config):
+def s3_parquet_to_snowflake(aws_session, snowflake_conn, files_to_snowflake, config):
     try:
         # Get AWS Credentials
         aws_credentials = aws_session.get_credentials().get_frozen_credentials()
@@ -52,17 +51,8 @@ def s3_parquet_to_snowflake(aws_session, snowflake_conn, config):
             )
         """)
 
-        #Files to move to Snowflake
-        files = {
-            "openfda_drugs": Path(config['OPENFDA_RAW_FILE_NAME']),
-            "census_fips": Path(config["CENSUS_FIPS_RAW_FILE_NAME"]),
-            "demo_faers": Path(config["DEMO_FAERS_RAW_FILE_NAME"]),
-            "drug_faers": Path(config["DRUG_FAERS_RAW_FILE_NAME"]),
-            "reac_faers": Path(config["REAC_FAERS_RAW_FILE_NAME"])
-        }
-
         # Main Ingestion
-        for table_name, file_name in files.items():
+        for table_name, file_name in files_to_snowflake.items():
             start_time = time.time()
             table_name = table_name.upper()
 

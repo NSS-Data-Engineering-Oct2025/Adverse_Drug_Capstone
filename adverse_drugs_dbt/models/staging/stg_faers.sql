@@ -1,21 +1,21 @@
 with 
 demo_faers_init as (
     select 
-    "primaryid"::BIGINT as primary_id,
+    TRY_TO_NUMBER("primaryid"::string) as primary_id,
     "i_f_code"::string as if_code,
-    "event_dt"::date as event_date,
-    "mfr_dt"::date as manufacturer_received_date,
-    "init_fda_dt"::date as initial_fda_received_date,
-    "fda_dt"::date as current_fda_received_date,
+    TRY_TO_DATE("event_dt"::string, 'YYYY-MM-DD') as event_date,
+    TRY_TO_DATE("mfr_dt"::string, 'YYYY-MM-DD') as manufacturer_received_date,
+    TRY_TO_DATE("init_fda_dt"::string, 'YYYY-MM-DD') as initial_fda_received_date,
+    TRY_TO_DATE("fda_dt"::string, 'YYYY-MM-DD') as current_fda_received_date,
     "rept_cod"::string as report_code,
     "mfr_num"::string as manufacturer_number,
     "mfr_sndr"::string as manufacturer_name,
     CASE 
-        WHEN "age_cod" = 'DY' THEN ("age"::float / 365.25)::int -- Convert days to years
-        WHEN "age_cod" = 'MON' THEN ("age"::float / 12)::int -- Convert months to years
-        WHEN "age_cod" = 'YR' THEN ("age"::float)::int -- Already in years
-        WHEN "age_cod" = 'DEC' THEN ("age"::float * 10)::int -- Convert decades to years
-        WHEN "age_cod" = 'WK' THEN ("age"::float / 52.1775)::int -- Convert weeks to years
+        WHEN "age_cod" = 'DY' THEN (TRY_TO_NUMBER("age"::string) / 365.25)::int -- Convert days to years
+        WHEN "age_cod" = 'MON' THEN (TRY_TO_NUMBER("age"::string) / 12)::int -- Convert months to years
+        WHEN "age_cod" = 'YR' THEN (TRY_TO_NUMBER("age"::string))::int -- Already in years
+        WHEN "age_cod" = 'DEC' THEN (TRY_TO_NUMBER("age"::string) * 10)::int -- Convert decades to years
+        WHEN "age_cod" = 'WK' THEN (TRY_TO_NUMBER("age"::string) / 52.1775)::int -- Convert weeks to years
         ELSE NULL -- For unknown or other age codes
     END as age_in_years,
     CASE
@@ -30,9 +30,9 @@ demo_faers_init as (
         ELSE NULL
     END as gender,
     CASE 
-        WHEN "wt_cod" = 'KG' THEN ROUND("wt"::float*2.20462, 1) -- Convert kilograms to pounds
-        WHEN "wt_cod" = 'G' THEN ROUND("wt"::float / 1000 * 2.20462, 1) -- Convert grams to pounds
-        WHEN "wt_cod" = 'LBS' THEN ROUND("wt"::float, 1) -- Already in pounds
+        WHEN "wt_cod" = 'KG' THEN ROUND(TRY_TO_NUMBER("wt"::string) * 2.20462, 1) -- Convert kilograms to pounds
+        WHEN "wt_cod" = 'G' THEN ROUND(TRY_TO_NUMBER("wt"::string) / 1000 * 2.20462, 1) -- Convert grams to pounds
+        WHEN "wt_cod" = 'LBS' THEN ROUND(TRY_TO_NUMBER("wt"::string), 1) -- Already in pounds
         ELSE NULL -- For unknown or other weight codes
     END as weight_in_lbs
 
@@ -41,7 +41,7 @@ demo_faers_init as (
 
 drug_faers_init as (
     select 
-    CONCAT("caseid"::string, "drug_seq"::string)::BIGINT as primary_id,
+    TRY_TO_NUMBER(CONCAT("caseid"::string, "drug_seq"::string)::string) as primary_id,
     "role_cod"::string as role_code,
     "drugname"::string as drug_name,
     CASE
@@ -58,8 +58,8 @@ drug_faers_init as (
         WHEN "lot_num" IS NULL THEN "lot_nbr"::string -- Use lot_nbr if lot_num is null
         ELSE "lot_nbr"::string
     END as lot_number,
-    "exp_dt"::date as expiration_date,
-    TRY_TO_NUMBER("nda_num"::string)::BIGINT as nda_number,
+    TRY_TO_DATE("exp_dt"::string, 'YYYY-MM-DD') as expiration_date,
+    TRY_TO_NUMBER("nda_num"::string) as nda_number,
     "dose_amt"::string as dose_amt_raw,
     CASE
         WHEN "dose_amt" LIKE '%/%'

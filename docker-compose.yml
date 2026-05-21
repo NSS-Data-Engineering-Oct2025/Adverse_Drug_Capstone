@@ -8,15 +8,17 @@ services:
     env_file: .env
     environment:
       - AIRFLOW__CORE__LOAD_EXAMPLES=false
-      - PYTHONPATH=/opt/airflow/workspace/src
-      - DB_PATH=/opt/airflow/workspace/data/crypto_catalog.ducklake
+      - PYTHONPATH=/opt/airflow/workspace:/opt/airflow/workspace/src
+      - DBT_PROFILES_DIR=/home/airflow/.dbt
+
     volumes:
       - .:/opt/airflow/workspace
       - ./dags:/opt/airflow/dags
       - ./data:/opt/airflow/data
       - ./logs:/opt/airflow/logs
       - ~/.aws:/home/airflow/.aws
-      - ./crypto_dbt:/opt/airflow/dags/crypto_dbt
+      - ~/.dbt:/home/airflow/.dbt   
+      - ./adverse_drugs_dbt:/opt/airflow/dags/adverse_drugs_dbt
     healthcheck:
       test: ["CMD", "curl", "--fail", "http://localhost:8080/api/v2/version"]
       interval: 30s

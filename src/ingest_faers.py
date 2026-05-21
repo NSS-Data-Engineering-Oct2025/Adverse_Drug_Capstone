@@ -7,88 +7,6 @@ import polars as pl
 from loguru import logger
 
 
-def fetch_census_fips(census_api_url, census_api_key):
-    """Fetch FIPS population data from Census API"""
-
-    params = {
-        "get": (
-            "DP05_0001E,DP05_0002E,DP05_0003E,DP05_0005E,DP05_0006E,"
-            "DP05_0007E,DP05_0008E,DP05_0009E,DP05_0010E,DP05_0011E,"
-            "DP05_0012E,DP05_0013E,DP05_0014E,DP05_0015E,DP05_0016E,"
-            "DP05_0017E,DP05_0068E,DP05_0069E,DP05_0070E,DP05_0071E,"
-            "DP05_0072E,DP05_0073E"
-        ),
-        "for": "county:*",
-        "key": census_api_key,
-    }
-    params_string = "&".join(f"{k}={v}" for k, v in params.items())
-    full_url = f"{census_api_url}?{params_string}"
-
-    try:
-        resp = httpx.get(full_url, timeout=15)
-        resp.raise_for_status()
-        data = resp.json()
-        df = pl.DataFrame(data[1:], schema=data[0], orient="row")
-        df = df.rename({
-            "DP05_0001E": "Total_Population",
-            "DP05_0002E": "Male_Population",
-            "DP05_0003E": "Female_Population",
-            "DP05_0005E": "Under_5_Population",
-            "DP05_0006E": "5_To_9_Population",
-            "DP05_0007E": "10_To_14_Population",
-            "DP05_0008E": "15_To_19_Population",
-            "DP05_0009E": "20_To_24_Population",
-            "DP05_0010E": "25_To_34_Population",
-            "DP05_0011E": "35_To_44_Population",
-            "DP05_0012E": "45_To_54_Population",
-            "DP05_0013E": "55_To_59_Population",
-            "DP05_0014E": "60_To_64_Population",
-            "DP05_0015E": "65_To_74_Population",
-            "DP05_0016E": "75_To_84_Population",
-            "DP05_0017E": "85_Plus_Population",
-            "DP05_0068E": "White_Population",
-            "DP05_0069E": "Black_Or_African_American_Population",
-            "DP05_0070E": "American_Indian_And_Alaska_Native_Population",
-            "DP05_0071E": "Asian_Population",
-            "DP05_0072E": "Native_Hawaiian_And_Other_Pacific_Islander_Population",
-            "DP05_0073E": "Some_Other_Race_Population",
-        })
-        df = df.with_columns((pl.col("state") + pl.col("county")).alias("fips_code"))
-        logger.info(f"Fetched {df.height} rows from Census API")
-        return df
-    except Exception as e:
-        logger.error(f"Failed to fetch Census FIPS data: {e}")
-        raise e
-
-def drugsfda_from_api(api_key):
-    try:
-        index_url = "https://api.fda.gov/download.json"
-        params = {"api_key": api_key}
-
-        # Use a single client session
-        client = httpx.Client(timeout=60.0)
-
-        # Get the index and extract the direct download URL
-        index_res = client.get(index_url, params=params)
-        index_res.raise_for_status()
-        download_url = index_res.json()['results']['drug']['drugsfda']['partitions'][0]['file']
-
-        # Download the data ZIP
-        file_res = client.get(download_url, params=params)
-        file_res.raise_for_status()
-        client.close() # Clean up the client manually
-
-        # Wrap the bytes in a ZipFile object and use .Path() to reach the JSON
-        zf = zipfile.ZipFile(io.BytesIO(file_res.content))
-        internal_file = zipfile.Path(zf, zf.namelist()[0])
-
-        # Read directly into Polars
-        return pl.read_json(internal_file.read_bytes())
-
-    except Exception as e:
-        logger.error(f"Error ingesting data from DrugsFDA API: {e}", exc_info=True)
-        raise e
-
 async def learn_schema_for_table(target_file_suffix: str):
     async with httpx.AsyncClient(timeout=60.0) as client:
         for year in range(2026, 2011, -1):  # newest → oldest
@@ -108,7 +26,7 @@ async def learn_schema_for_table(target_file_suffix: str):
                         continue
 
                     with z.open(matches[0]) as f:
-                        df = pl.read_csv(
+                        dummy_df = pl.read_csv(
                             f,
                             separator="$",
                             encoding="latin-1",
@@ -116,7 +34,7 @@ async def learn_schema_for_table(target_file_suffix: str):
                             infer_schema_length=10000,
                             truncate_ragged_lines=True
                         )
-                        return df.columns
+                        return dummy_df.columns
 
     raise RuntimeError(f"Could not learn schema for {target_file_suffix}")
 
@@ -170,7 +88,7 @@ async def fetch_and_parse_quarter(
             #     )
                 raw = f.read()                      # raw bytes
                 text = raw.decode("latin-1", errors="replace")
-                df = pl.read_csv(
+                faers_df = pl.read_csv(
                     io.StringIO(text),
                     separator="$",
                     ignore_errors=True,
@@ -180,13 +98,13 @@ async def fetch_and_parse_quarter(
                     schema_overrides=schema_override
                 )
 
-                df = df.with_columns([
+                faers_df = faers_df.with_columns([
                     pl.lit(year).alias("src_year"),
                     pl.lit(quarter).alias("src_quarter")
                 ])
 
-                logger.info(f"Loaded {len(df)} rows from {year} Q{quarter}")
-                return df
+                logger.info(f"Loaded {len(faers_df)} rows from {year} Q{quarter}")
+                return faers_df
 
     except Exception as e:
         logger.error(f"Error processing {year} Q{quarter}: {e}", exc_info=True)
