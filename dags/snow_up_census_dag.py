@@ -20,7 +20,7 @@ def snow_upload_census():
     aws_session = boto3.Session(profile_name=config["SSO_PROFILE_NAME"])
 
     files_to_snowflake = {
-        "census_fips": Path(config["CENSUS_FIPS_RAW_FILE_NAME"]),
+        "census_fips": Path(config["CENSUS_FIPS_RAW_FILE_NAME"])
     }
 
     upload.s3_parquet_to_snowflake(aws_session, config_snow.get_snowflake_connection(), files_to_snowflake, config)
