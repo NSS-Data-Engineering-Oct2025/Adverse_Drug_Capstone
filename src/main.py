@@ -8,7 +8,7 @@ from loguru import logger
 
 import config_snow
 import ingest_census
-import ingest_faers
+import ingest_faers_full
 import ingest_openfda
 import upload
 
@@ -52,7 +52,7 @@ def main():
 
     #FAERS data from API and upload to S3
     for table in faers_target_tables:
-        faers_target_df = asyncio.run(ingest_faers.get_full_faers_async(table))
+        faers_target_df = asyncio.run(ingest_faers_full.get_full_faers_async(table))
         logger.info(f"Ingested FAERS {table} data from API.")
         upload.polars_to_s3_parquet(client=aws_s3_client, data=faers_target_df, file_name=f"{table.lower()}_faers_raw.parquet", config=config)
         logger.info(f"Uploaded {table}_FAERS_RAW.parquet to S3.")

@@ -12,7 +12,7 @@ def ingest_faers_demo_dag():
     import boto3
     from dotenv import dotenv_values
 
-    import ingest_faers
+    import ingest_faers_full
     import upload
 
     config = dotenv_values("/opt/airflow/workspace/.env")
@@ -24,7 +24,7 @@ def ingest_faers_demo_dag():
     #FAERS data from API and upload to S3
     faers_table = "DEMO"
 
-    faers_target_df = asyncio.run(ingest_faers.get_full_faers_async(faers_table))
+    faers_target_df = asyncio.run(ingest_faers_full.get_full_faers_async(faers_table))
     upload.polars_to_s3_parquet(client=aws_s3_client, data=faers_target_df, file_name=f"{faers_table.lower()}_faers_raw.parquet", config=config)
 
 @dag(

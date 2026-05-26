@@ -54,10 +54,7 @@ drug_faers_init as (
     "cum_dose_chr"::string as cumulative_dose,
     "dechal"::string as dechallenge,
     "rechal"::string as rechallenge,
-    CASE
-        WHEN "lot_num" IS NULL THEN "lot_nbr"::string -- Use lot_nbr if lot_num is null
-        ELSE "lot_nbr"::string
-    END as lot_number,
+    "lot_nbr"::string as lot_number,
     TRY_TO_DATE("exp_dt"::string, 'YYYY-MM-DD') as expiration_date,
     TRY_TO_NUMBER("nda_num"::string) as nda_number,
     "dose_amt"::string as dose_amt_raw,
