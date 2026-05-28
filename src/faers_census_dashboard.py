@@ -223,9 +223,10 @@ df_faers_age    = df_faers_age.rename({c: c.upper() for c in df_faers_age.column
 df_faers_gender = df_faers_gender.rename({c: c.upper() for c in df_faers_gender.columns})
 df_census       = df_census.rename({c: c.upper() for c in df_census.columns})
 
-# ── Drug filters (populated from data, rendered after load) ───────────────────
+# ── Drug & State filters (populated from data, rendered after load) ───────────────────
 all_ingredients = sorted(df_faers_age["ACTIVE_INGREDIENT_NAME"].drop_nulls().unique().to_list())
 all_brands      = sorted(df_faers_age["BRAND_NAME"].drop_nulls().unique().to_list())
+all_states      = sorted(df_census["STATE_ABBREVIATION"].drop_nulls().unique().to_list())
 
 with st.sidebar:
     st.markdown("---")
@@ -242,6 +243,12 @@ with st.sidebar:
         default=[],
         placeholder="All brands",
     )
+    state_filter = st.multiselect(
+        "State (Census)",
+        options=all_states,
+        default=[],
+        placeholder="All states",
+    )
 
 # ── Apply sidebar filters in Polars ───────────────────────────────────────────
 if year_filter:
@@ -256,6 +263,8 @@ if ingredient_filter:
 if brand_filter:
     df_faers_age    = df_faers_age.filter(pl.col("BRAND_NAME").is_in(brand_filter))
     df_faers_gender = df_faers_gender.filter(pl.col("BRAND_NAME").is_in(brand_filter))
+if state_filter:
+    df_census       = df_census.filter(pl.col("STATE_ABBREVIATION").is_in(state_filter))
 
 # Re-aggregate after filtering (models store one row per year+gender combination)
 df_faers_age = (

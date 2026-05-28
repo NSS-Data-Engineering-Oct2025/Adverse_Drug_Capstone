@@ -34,6 +34,7 @@ SELECT
     Pop_Other_Race,
 
     -- Geography (Kept as Strings/Ints depending on use)
+    State_Abbreviation,
     State_Code,
     County_Code,
     FIPS_Code

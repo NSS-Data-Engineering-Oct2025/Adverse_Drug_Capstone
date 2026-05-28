@@ -21,5 +21,8 @@ SELECT
     SUM(Pop_60_To_64)               AS pop_60_to_64,
     SUM(Pop_65_To_74)               AS pop_65_to_74,
     SUM(Pop_75_To_84)               AS pop_75_to_84,
-    SUM(Pop_85_Plus)                AS pop_85_plus
+    SUM(Pop_85_Plus)                AS pop_85_plus,
+
+    State_Abbreviation
 FROM {{ ref('dim_fips_census') }}
+GROUP BY State_Abbreviation
