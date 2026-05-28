@@ -4,3 +4,12 @@ models:
     
   - name: dim_drug_faers
     description: "Dimensional table for drug FAERS data"
+
+  - name: rept_faers_age_distribution
+    description: "Report on FAERS age distribution"
+
+  - name: rept_faers_gender
+    description: "Report on FAERS gender distribution"
+
+  - name: rept_census_demographics
+    description: "Report on census demographics"
