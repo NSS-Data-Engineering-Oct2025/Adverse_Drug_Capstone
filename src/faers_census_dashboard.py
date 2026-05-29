@@ -109,6 +109,12 @@ CHART_COLORS = {
     "accent": "#f0a0c8",
 }
 
+GENDER_COLORS = {
+    "M":   "#6ab0f5",  # blue
+    "F":   "#f0a0c8",  # pink
+    "UNK": "#c8f0a0",  # green (unknown/other)
+}
+
 PLOTLY_LAYOUT = dict(
     paper_bgcolor="rgba(0,0,0,0)",
     plot_bgcolor="rgba(0,0,0,0)",
@@ -294,7 +300,7 @@ df_faers_gender = (
 )
 # Re-aggregate census across selected states (original model is one row per state)
 if state_filter:
-    census_pop_cols = ["MALE_POP", "FEMALE_POP", "TOTAL_POP"] + list(AGE_TO_CENSUS_COL.values())
+    census_pop_cols = ["MALE_POP", "FEMALE_POP", "TOTAL_POP", *list(AGE_TO_CENSUS_COL.values())]
     df_census = df_census.select([pl.sum(c).alias(c) for c in census_pop_cols])
 
 # ── Active filter banner ────────────────────────────────────────────────────────
@@ -400,11 +406,12 @@ st.markdown('<div class="section-header">02 — Gender Breakdown</div>', unsafe_
 
 gcol1, gcol2 = st.columns(2)
 
+_faers_gender_labels = df_faers_gender["GENDER"].to_list()
 fig_faers_gender = go.Figure(go.Pie(
     labels=df_faers_gender["GENDER"].to_list(),
     values=df_faers_gender["REPORT_COUNT"].to_list(),
     hole=0.55,
-    marker=dict(colors=[CHART_COLORS["faers"], CHART_COLORS["census"], CHART_COLORS["accent"]]),
+    marker=dict(colors=[GENDER_COLORS.get(g, "#cccccc") for g in _faers_gender_labels]),
     textfont=dict(family="DM Mono, monospace", size=11),
 ))
 fig_faers_gender.update_layout(
@@ -418,7 +425,7 @@ fig_census_gender = go.Figure(go.Pie(
     labels=["M", "F"],
     values=[df_census["MALE_POP"][0], df_census["FEMALE_POP"][0]],
     hole=0.55,
-    marker=dict(colors=[CHART_COLORS["census"], CHART_COLORS["accent"]]),
+    marker=dict(colors=[GENDER_COLORS.get(g, "#cccccc") for g in ["M", "F"]]),
     textfont=dict(family="DM Mono, monospace", size=11),
 ))
 fig_census_gender.update_layout(
