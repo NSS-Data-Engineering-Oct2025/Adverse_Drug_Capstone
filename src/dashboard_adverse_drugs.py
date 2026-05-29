@@ -120,7 +120,12 @@ PLOTLY_LAYOUT = dict(
     plot_bgcolor="rgba(0,0,0,0)",
     font=dict(family="DM Mono, monospace", color="#e8e4d9", size=11),
     margin=dict(l=10, r=10, t=30, b=10),
-    legend=dict(bgcolor="rgba(0,0,0,0)", bordercolor="#2a2f3e", borderwidth=1),
+    legend=dict(
+        bgcolor="rgba(13,15,20,0.8)",
+        bordercolor="#2a2f3e",
+        borderwidth=1,
+        font=dict(color="#ffffff", size=11),
+    ),
     xaxis=dict(gridcolor="#1e2330", zerolinecolor="#2a2f3e"),
     yaxis=dict(gridcolor="#1e2330", zerolinecolor="#2a2f3e"),
 )
@@ -235,6 +240,7 @@ with st.spinner("Querying Snowflake…"):
         df_faers_age     = query(conn, "SELECT * FROM RPT_FAERS_AGE_DISTRIBUTION")
         df_faers_gender  = query(conn, "SELECT * FROM RPT_FAERS_GENDER")
         df_census        = query(conn, "SELECT * FROM RPT_CENSUS_DEMOGRAPHICS")
+        df_ct            = query(conn, "SELECT * FROM RPT_CLINICAL_TRIALS")
     except Exception as e:
         st.error(f"Query failed: {e}")
         st.stop()
@@ -243,6 +249,7 @@ with st.spinner("Querying Snowflake…"):
 df_faers_age    = df_faers_age.rename({c: c.upper() for c in df_faers_age.columns})
 df_faers_gender = df_faers_gender.rename({c: c.upper() for c in df_faers_gender.columns})
 df_census       = df_census.rename({c: c.upper() for c in df_census.columns})
+df_ct           = df_ct.rename({c: c.upper() for c in df_ct.columns})
 
 # ── Drug & State filters (populated from data, rendered after load) ───────────────────
 all_ingredients = sorted(df_faers_age["ACTIVE_INGREDIENT_NAME"].drop_nulls().unique().to_list())
@@ -269,6 +276,18 @@ with st.sidebar:
         options=all_states,
         default=[],
         placeholder="All states",
+    )
+
+with st.sidebar:
+    st.markdown("---")
+    st.markdown("**Clinical Trials filters**")
+    all_ct_status = sorted(df_ct["OVERALL_STATUS"].drop_nulls().unique().to_list())
+    all_ct_phases = sorted(df_ct["PHASE_BUCKET"].drop_nulls().unique().to_list())
+    ct_status_filter = st.multiselect(
+        "Trial status", options=all_ct_status, default=[], placeholder="All statuses",
+    )
+    ct_phase_filter = st.multiselect(
+        "Phase", options=all_ct_phases, default=[], placeholder="All phases",
     )
 
 # ── Apply sidebar filters in Polars ───────────────────────────────────────────
@@ -303,6 +322,16 @@ if state_filter:
     census_pop_cols = ["MALE_POP", "FEMALE_POP", "TOTAL_POP", *list(AGE_TO_CENSUS_COL.values())]
     df_census = df_census.select([pl.sum(c).alias(c) for c in census_pop_cols])
 
+# ── Apply CT filters & re-aggregate ──────────────────────────────────────────
+if ct_status_filter:
+    df_ct = df_ct.filter(pl.col("OVERALL_STATUS").is_in(ct_status_filter))
+if ct_phase_filter:
+    df_ct = df_ct.filter(pl.col("PHASE_BUCKET").is_in(ct_phase_filter))
+
+df_ct_age    = df_ct.group_by("ELIGIBILITY_AGE_BUCKET").agg(pl.col("STUDY_COUNT").sum())
+df_ct_gender = df_ct.group_by("ELIGIBLE_SEX").agg(pl.col("STUDY_COUNT").sum())
+ct_total     = int(df_ct["STUDY_COUNT"].sum())
+
 # ── Active filter banner ────────────────────────────────────────────────────────
 active_filters = []
 if year_filter:
@@ -320,6 +349,12 @@ if brand_filter:
 if state_filter:
     tags = " ".join(f'<span class="filter-tag filter-tag-census">{s}</span>' for s in state_filter)
     active_filters.append(f"<strong>State:</strong> {tags}")
+if ct_status_filter:
+    tags = " ".join(f'<span class="filter-tag filter-tag-census">{s}</span>' for s in ct_status_filter)
+    active_filters.append(f"<strong>Trial Status:</strong> {tags}")
+if ct_phase_filter:
+    tags = " ".join(f'<span class="filter-tag filter-tag-census">{p}</span>' for p in ct_phase_filter)
+    active_filters.append(f"<strong>Phase:</strong> {tags}")
 if active_filters:
     st.markdown(
         '<div class="filter-banner">🔍 &nbsp;' + " &nbsp;·&nbsp; ".join(active_filters) + "</div>",
@@ -331,7 +366,7 @@ total_reports   = df_faers_age["REPORT_COUNT"].sum()
 total_pop       = df_census["TOTAL_POP"][0] if df_census.height > 0 else 0
 unique_age_grps = df_faers_age["AGE_GROUP"].n_unique()
 
-col1, col2, col3, col4 = st.columns(4)
+col1, col2, col3, col4, col5 = st.columns(5)
 
 def kpi(col, label, value, sub=""):
     col.markdown(f"""
@@ -347,6 +382,7 @@ kpi(col3, "Age Groups",        str(unique_age_grps),             "with FAERS dat
 kpi(col4, "Reporting Rate",
     f"{total_reports / total_pop * 100_000:.1f}" if total_pop else "—",
     "per 100k population")
+kpi(col5, "Clinical Trials", f"{ct_total:,}", "filtered")
 
 st.markdown("<br>", unsafe_allow_html=True)
 
@@ -399,7 +435,7 @@ fig_age.update_layout(
     legend_y=1.08,
     legend_x=0
 )
-st.plotly_chart(fig_age, use_container_width=True)
+st.plotly_chart(fig_age, use_container_width=True, key="fig_age")
 
 # ── 02 Gender breakdown ────────────────────────────────────────────────────────
 st.markdown('<div class="section-header">02 — Gender Breakdown</div>', unsafe_allow_html=True)
@@ -419,7 +455,7 @@ fig_faers_gender.update_layout(
     title=dict(text="FAERS Reporters", font=dict(size=12, color="#5a6478"), x=0.5),
     height=280,
 )
-gcol1.plotly_chart(fig_faers_gender, use_container_width=True)
+gcol1.plotly_chart(fig_faers_gender, use_container_width=True, key="fig_faers_gender_02")
 
 fig_census_gender = go.Figure(go.Pie(
     labels=["M", "F"],
@@ -433,13 +469,127 @@ fig_census_gender.update_layout(
     title=dict(text="Census Population", font=dict(size=12, color="#5a6478"), x=0.5),
     height=280,
 )
-gcol2.plotly_chart(fig_census_gender, use_container_width=True)
+gcol2.plotly_chart(fig_census_gender, use_container_width=True, key="fig_census_gender_02")
+
+# ── 03 Age comparison: FAERS · Census · Trial eligibility ─────────────────────
+st.markdown('<div class="section-header">03 — Age Comparison: FAERS · Census · Trial Eligibility</div>', unsafe_allow_html=True)
+
+CT_AGE_MAP = {
+    "Includes children (<18)": ["Under 5", "5-9", "10-14", "15-19"],
+    "Adults (18-64)":           ["20-24", "25-34", "35-44", "45-54", "55-59", "60-64"],
+    "Older adults (65+)":       ["65-74", "75-84", "85+"],
+}
+CT_AGE_ORDER = ["Includes children (<18)", "Adults (18-64)", "Older adults (65+)"]
+
+faers_bucket_counts = {
+    b: df_faers_age_pct.filter(pl.col("AGE_GROUP").is_in(groups))["FAERS_PCT"].sum()
+    for b, groups in CT_AGE_MAP.items()
+}
+faers_bucket_total = sum(faers_bucket_counts.values()) or 1
+
+census_bucket_counts = {
+    "Includes children (<18)": sum(df_census[c][0] for c in ["POP_UNDER_5","POP_5_TO_9","POP_10_TO_14","POP_15_TO_19"]) if df_census.height > 0 else 0,
+    "Adults (18-64)":           sum(df_census[c][0] for c in ["POP_20_TO_24","POP_25_TO_34","POP_35_TO_44","POP_45_TO_54","POP_55_TO_59","POP_60_TO_64"]) if df_census.height > 0 else 0,
+    "Older adults (65+)":       sum(df_census[c][0] for c in ["POP_65_TO_74","POP_75_TO_84","POP_85_PLUS"]) if df_census.height > 0 else 0,
+}
+census_bucket_total = sum(census_bucket_counts.values()) or 1
+
+ct_bucket_counts = {
+    b: int(df_ct_age.filter(pl.col("ELIGIBILITY_AGE_BUCKET") == b)["STUDY_COUNT"].sum())
+    if df_ct_age.filter(pl.col("ELIGIBILITY_AGE_BUCKET") == b).height > 0 else 0
+    for b in CT_AGE_ORDER
+}
+ct_bucket_total = sum(ct_bucket_counts.values()) or 1
+
+fig_age_compare = go.Figure()
+fig_age_compare.add_trace(go.Bar(
+    x=CT_AGE_ORDER,
+    y=[census_bucket_counts[b] / census_bucket_total * 100 for b in CT_AGE_ORDER],
+    name="Census population",
+    marker_color=CHART_COLORS["census"],
+    opacity=0.75,
+))
+fig_age_compare.add_trace(go.Bar(
+    x=CT_AGE_ORDER,
+    y=[faers_bucket_counts[b] / faers_bucket_total * 100 for b in CT_AGE_ORDER],
+    name="FAERS reporters",
+    marker_color=CHART_COLORS["faers"],
+    opacity=0.9,
+))
+fig_age_compare.add_trace(go.Bar(
+    x=CT_AGE_ORDER,
+    y=[ct_bucket_counts[b] / ct_bucket_total * 100 for b in CT_AGE_ORDER],
+    name="Trial eligibility",
+    marker_color=CHART_COLORS["accent"],
+    opacity=0.9,
+))
+fig_age_compare.update_layout(
+    **PLOTLY_LAYOUT,
+    barmode="group",
+    yaxis_title="% of group",
+    height=340,
+    legend_orientation="h",
+    legend_y=1.08,
+    legend_x=0,
+)
+st.plotly_chart(fig_age_compare, use_container_width=True, key="fig_age_compare")
+
+# ── 04 Gender comparison: FAERS · Census · Trial eligibility ──────────────────
+st.markdown('<div class="section-header">04 — Gender Comparison: FAERS · Census · Trial Eligibility</div>', unsafe_allow_html=True)
+
+gcol_ct1, gcol_ct2, gcol_ct3 = st.columns(3)
+
+fig_faers_g2 = go.Figure(go.Pie(
+    labels=df_faers_gender["GENDER"].to_list(),
+    values=df_faers_gender["REPORT_COUNT"].to_list(),
+    hole=0.55,
+    marker=dict(colors=[GENDER_COLORS.get(g, "#cccccc") for g in df_faers_gender["GENDER"].to_list()]),
+    textfont=dict(family="DM Mono, monospace", size=11),
+))
+fig_faers_g2.update_layout(
+    **PLOTLY_LAYOUT,
+    title=dict(text="FAERS Reporters", font=dict(size=12, color="#5a6478"), x=0.5),
+    height=280,
+)
+gcol_ct1.plotly_chart(fig_faers_g2, use_container_width=True, key="fig_faers_gender_04")
+
+fig_census_g2 = go.Figure(go.Pie(
+    labels=["M", "F"],
+    values=[df_census["MALE_POP"][0], df_census["FEMALE_POP"][0]],
+    hole=0.55,
+    marker=dict(colors=[GENDER_COLORS.get(g, "#cccccc") for g in ["M", "F"]]),
+    textfont=dict(family="DM Mono, monospace", size=11),
+))
+fig_census_g2.update_layout(
+    **PLOTLY_LAYOUT,
+    title=dict(text="Census Population", font=dict(size=12, color="#5a6478"), x=0.5),
+    height=280,
+)
+gcol_ct2.plotly_chart(fig_census_g2, use_container_width=True, key="fig_census_gender_04")
+
+CT_SEX_LABEL = {"ALL": "All", "FEMALE": "F", "MALE": "M"}
+ct_gender_labels = [CT_SEX_LABEL.get(s, s) for s in df_ct_gender["ELIGIBLE_SEX"].to_list()]
+fig_ct_gender = go.Figure(go.Pie(
+    labels=ct_gender_labels,
+    values=df_ct_gender["STUDY_COUNT"].to_list(),
+    hole=0.55,
+    marker=dict(colors=[GENDER_COLORS.get(l, "#cccccc") for l in ct_gender_labels]),
+    textfont=dict(family="DM Mono, monospace", size=11),
+))
+fig_ct_gender.update_layout(
+    **PLOTLY_LAYOUT,
+    title=dict(text="Trial Eligibility (sex)", font=dict(size=12, color="#5a6478"), x=0.5),
+    height=280,
+)
+gcol_ct3.plotly_chart(fig_ct_gender, use_container_width=True, key="fig_ct_gender_04")
 
 # ── Raw data expanders ─────────────────────────────────────────────────────────
 with st.expander("Raw data — FAERS age"):
     st.dataframe(df_faers_age, use_container_width=True)
 with st.expander("Raw data — Census demographics"):
     st.dataframe(df_census, use_container_width=True)
+with st.expander("Raw data — Clinical Trials"):
+    st.dataframe(df_ct, use_container_width=True)
 
 # ── Footer ─────────────────────────────────────────────────────────────────────
 st.markdown("---")
