@@ -86,6 +86,19 @@ section[data-testid="stSidebar"] * { color: #e8e4d9 !important; }
 .js-plotly-plot { border-radius: 6px; }
 hr { border-color: #2a2f3e; }
 .stAlert { background-color: #131620; border-color: #2a2f3e; }
+.filter-banner {
+    background: #131620; border: 1px solid #2a2f3e;
+    border-left: 3px solid #c8f0a0; border-radius: 4px;
+    padding: 0.6rem 1rem; margin-bottom: 1rem;
+    font-size: 0.72rem; color: #a0b0c0; line-height: 1.9;
+}
+.filter-banner strong { color: #e8e4d9; }
+.filter-tag {
+    display: inline-block; background: #1e2a1e; border: 1px solid #3a5a3a;
+    border-radius: 3px; padding: 0.1rem 0.4rem; margin: 0.1rem 0.2rem;
+    color: #c8f0a0; font-size: 0.68rem;
+}
+.filter-tag-census { background: #1a2535; border-color: #2a4060; color: #6ab0f5; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -169,11 +182,6 @@ with st.sidebar:
         help="Use an absolute path if streamlit isn't launched from the same directory as your .env",
     )
 
-    if st.sidebar.button("🗑️ Clear cache"):
-        st.cache_data.clear()
-        st.cache_resource.clear()
-        st.rerun()
-
     st.markdown("---")
     st.markdown("**Filters**")
     year_filter = st.multiselect(
@@ -190,13 +198,20 @@ with st.sidebar:
     )
 
     connect_btn = st.button("🔌 Connect & Load", use_container_width=True, type="primary")
+    if connect_btn:
+        st.session_state.connected = True
+    if st.button("🗑️ Clear cache", use_container_width=True):
+        st.cache_data.clear()
+        st.cache_resource.clear()
+        st.session_state.connected = False
+        st.rerun()
 
 # ── Header ─────────────────────────────────────────────────────────────────────
 st.markdown('<div class="dash-title">FAERS × Census</div>', unsafe_allow_html=True)
 st.markdown('<div class="dash-subtitle">Adverse event reporter demographics vs. U.S. population</div>', unsafe_allow_html=True)
 st.markdown("<br>", unsafe_allow_html=True)
 
-if not connect_btn:
+if not st.session_state.connected:
     st.info("Configure your `.env` path in the sidebar and click **Connect & Load** to begin.")
     st.stop()
 
@@ -277,6 +292,33 @@ df_faers_gender = (
     .group_by("GENDER")
     .agg(pl.col("REPORT_COUNT").sum())
 )
+# Re-aggregate census across selected states (original model is one row per state)
+if state_filter:
+    census_pop_cols = ["MALE_POP", "FEMALE_POP", "TOTAL_POP"] + list(AGE_TO_CENSUS_COL.values())
+    df_census = df_census.select([pl.sum(c).alias(c) for c in census_pop_cols])
+
+# ── Active filter banner ────────────────────────────────────────────────────────
+active_filters = []
+if year_filter:
+    tags = " ".join(f'<span class="filter-tag">{y}</span>' for y in year_filter)
+    active_filters.append(f"<strong>Year:</strong> {tags}")
+if gender_filter:
+    tags = " ".join(f'<span class="filter-tag">{g}</span>' for g in gender_filter)
+    active_filters.append(f"<strong>Gender:</strong> {tags}")
+if ingredient_filter:
+    tags = " ".join(f'<span class="filter-tag">{i}</span>' for i in ingredient_filter)
+    active_filters.append(f"<strong>Ingredient:</strong> {tags}")
+if brand_filter:
+    tags = " ".join(f'<span class="filter-tag">{b}</span>' for b in brand_filter)
+    active_filters.append(f"<strong>Brand:</strong> {tags}")
+if state_filter:
+    tags = " ".join(f'<span class="filter-tag filter-tag-census">{s}</span>' for s in state_filter)
+    active_filters.append(f"<strong>State:</strong> {tags}")
+if active_filters:
+    st.markdown(
+        '<div class="filter-banner">🔍 &nbsp;' + " &nbsp;·&nbsp; ".join(active_filters) + "</div>",
+        unsafe_allow_html=True,
+    )
 
 # ── KPI row ────────────────────────────────────────────────────────────────────
 total_reports   = df_faers_age["REPORT_COUNT"].sum()
