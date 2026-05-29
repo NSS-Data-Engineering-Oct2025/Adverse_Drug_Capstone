@@ -12,3 +12,5 @@ sources:
         description: "Raw drug data ingested from FAERS files"
       - name: REAC_FAERS
         description: "Raw reaction data ingested from FAERS files"
+      - name: CLINICAL_TRIALS
+        description: "Raw clinical trials data ingested from ClinicalTrials.gov API"

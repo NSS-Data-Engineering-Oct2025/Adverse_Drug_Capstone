@@ -13,3 +13,9 @@ models:
 
   - name: rept_census_demographics
     description: "Report on census demographics"
+
+  - name: dim_clinical_trials
+    description: "Dimensional table for clinical trials data"
+
+  - name: rpt_clinical_trials
+    description: "Report on clinical trials data for dashboard"
